@@ -1,0 +1,455 @@
+====================================================
+F1MIS MEMORY CHECK & SYSTEM READINESS CODE NOTES
+VB.NET (.NET Framework 4.8)
+====================================================
+
+
+PURPOSE:
+
+Add memory validation before F1MIS synchronization.
+
+Problem:
+
+During Tally transaction synchronization, some cloud/RDP servers show:
+
+"Out of Memory"
+
+Reason:
+
+Tally requires sufficient available RAM while generating transaction XML.
+
+Solution:
+
+Check:
+1. Total RAM
+2. Available RAM
+3. Active Remote Desktop Users
+
+before starting synchronization.
+
+
+====================================================
+CODE 1: MEMORY CHECK CLASS
+====================================================
+
+
+Imports Microsoft.VisualBasic.Devices
+
+
+Public Class MemoryChecker
+
+
+    Public Shared Function GetTotalRAM() As Double
+
+        Dim info As New ComputerInfo()
+
+        Dim totalRAM As Double =
+            info.TotalPhysicalMemory / (1024 ^ 3)
+
+        Return Math.Round(totalRAM, 2)
+
+    End Function
+
+
+
+    Public Shared Function GetAvailableRAM() As Double
+
+        Dim info As New ComputerInfo()
+
+        Dim availableRAM As Double =
+            info.AvailablePhysicalMemory / (1024 ^ 3)
+
+        Return Math.Round(availableRAM, 2)
+
+    End Function
+
+
+End Class
+
+
+
+====================================================
+CODE 2: MEMORY WARNING BEFORE SYNC
+====================================================
+
+
+Imports System.Windows.Forms
+
+
+Public Class SyncMemoryCheck
+
+
+    Public Shared Function CheckBeforeSync() As Boolean
+
+
+        Dim totalRAM As Double =
+            MemoryChecker.GetTotalRAM()
+
+
+        Dim availableRAM As Double =
+            MemoryChecker.GetAvailableRAM()
+
+
+
+        If availableRAM < 1.5 Then
+
+
+            Dim result As DialogResult = MessageBox.Show(
+
+            "F1MIS Memory Warning" &
+            vbCrLf &
+            vbCrLf &
+            "Total RAM : " &
+            totalRAM &
+            " GB" &
+            vbCrLf &
+            "Available RAM : " &
+            availableRAM &
+            " GB" &
+            vbCrLf &
+            vbCrLf &
+            "Available memory is low." &
+            vbCrLf &
+            "Please close unused applications or logout unused users." &
+            vbCrLf &
+            vbCrLf &
+            "Do you want to continue synchronization?",
+
+
+            "F1MIS System Check",
+
+            MessageBoxButtons.YesNo,
+
+            MessageBoxIcon.Warning)
+
+
+
+            If result = DialogResult.No Then
+
+                Return False
+
+            End If
+
+
+        End If
+
+
+        Return True
+
+
+    End Function
+
+
+End Class
+
+
+
+====================================================
+CODE 3: CALL MEMORY CHECK BEFORE SYNC
+====================================================
+
+
+Add this code in your Sync Button Click event.
+
+
+Private Sub btnSync_Click(sender As Object, e As EventArgs) Handles btnSync.Click
+
+
+    If SyncMemoryCheck.CheckBeforeSync() = True Then
+
+
+        StartSync()
+
+
+    Else
+
+
+        Exit Sub
+
+
+    End If
+
+
+End Sub
+
+
+
+====================================================
+CODE 4: INSTALLATION TIME RAM CHECK
+====================================================
+
+
+Imports System.Windows.Forms
+
+
+Public Class InstallationCheck
+
+
+    Public Shared Sub CheckRAMBeforeInstall()
+
+
+        Dim totalRAM As Double =
+            MemoryChecker.GetTotalRAM()
+
+
+
+        If totalRAM < 8 Then
+
+
+            MessageBox.Show(
+
+            "F1MIS System Requirement Warning" &
+            vbCrLf &
+            vbCrLf &
+            "Detected RAM : " &
+            totalRAM &
+            " GB" &
+            vbCrLf &
+            vbCrLf &
+            "Minimum Required : 8 GB" &
+            vbCrLf &
+            "Recommended : 16 GB" &
+            vbCrLf &
+            vbCrLf &
+            "Performance may be affected.",
+
+
+            "F1MIS Installation Check",
+
+            MessageBoxButtons.OK,
+
+            MessageBoxIcon.Warning)
+
+
+        End If
+
+
+    End Sub
+
+
+End Class
+
+
+
+====================================================
+CODE 5: CHECK ACTIVE RDP USERS
+====================================================
+
+
+Imports System.Management
+
+
+Public Class UserCheck
+
+
+    Public Shared Function GetLoggedInUsers() As Integer
+
+
+        Dim count As Integer = 0
+
+
+        Dim searcher As New ManagementObjectSearcher(
+
+        "SELECT * FROM Win32_LoggedOnUser")
+
+
+
+        For Each obj As ManagementObject In searcher.Get()
+
+            count += 1
+
+        Next
+
+
+        Return count
+
+
+    End Function
+
+
+End Class
+
+
+
+====================================================
+CODE 6: USER WARNING BEFORE SYNC
+====================================================
+
+
+Public Shared Function CheckUsers() As Boolean
+
+
+    Dim users As Integer =
+        UserCheck.GetLoggedInUsers()
+
+
+
+    If users > 2 Then
+
+
+        MessageBox.Show(
+
+        "Multiple users are active on this server." &
+        vbCrLf &
+        "Current Users : " &
+        users &
+        vbCrLf &
+        vbCrLf &
+        "Synchronization may require more memory.",
+
+
+        "F1MIS User Warning",
+
+        MessageBoxButtons.OK,
+
+        MessageBoxIcon.Warning)
+
+
+    End If
+
+
+    Return True
+
+
+End Function
+
+
+
+====================================================
+CODE 7: COMPLETE SYNC VALIDATION
+====================================================
+
+
+Use this before starting Tally synchronization.
+
+
+Private Sub btnSync_Click(sender As Object, e As EventArgs) Handles btnSync.Click
+
+
+
+    'Check Available Memory
+
+    If SyncMemoryCheck.CheckBeforeSync() = False Then
+
+        Exit Sub
+
+    End If
+
+
+
+    'Check Active Users
+
+    CheckUsers()
+
+
+
+    'Start F1MIS Sync
+
+    StartSync()
+
+
+
+End Sub
+
+
+
+====================================================
+MEMORY VALIDATION RULES
+====================================================
+
+
+Minimum Total RAM:
+
+8 GB
+
+
+Recommended RAM:
+
+16 GB
+
+
+Minimum Available RAM Before Sync:
+
+1.5 GB
+
+
+
+Important:
+
+Do not block only based on installed RAM.
+
+Example:
+
+
+Server RAM:
+8 GB
+
+
+But:
+
+Windows:
+2 GB
+
+SQL:
+2 GB
+
+Other Users:
+2 GB
+
+Available:
+500 MB
+
+
+Sync can still fail.
+
+
+Therefore check:
+
+1. Total RAM
+
+AND
+
+2. Available RAM
+
+
+
+====================================================
+EXPECTED FLOW
+====================================================
+
+
+User clicks F1MIS Sync
+
+        |
+
+        ↓
+
+Check Total RAM
+
+        |
+
+        ↓
+
+Check Available RAM
+
+        |
+
+        ↓
+
+Check Active Users
+
+        |
+
+        ↓
+
+Show Warning if required
+
+        |
+
+        ↓
+
+Start Tally Synchronization
+
+
+
+

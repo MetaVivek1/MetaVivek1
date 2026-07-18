@@ -1,0 +1,520 @@
+F1MIS SYSTEM MEMORY CHECK & SYNCHRONIZATION PROTECTION REQUIREMENT
+
+====================================================
+
+1. PURPOSE
+
+Currently F1MIS is installed on cloud/RDP servers where customers run:
+
+- Tally
+- F1MIS Application
+- SQL Server / SQL Express
+- Multiple Remote Desktop Users
+
+In some cloud environments, during Tally transaction synchronization, Tally freezes and closes with:
+
+"Out of Memory"
+
+The issue occurs because Tally requires sufficient available memory while generating transaction data/XML.
+
+Solution required:
+
+Add system memory validation before:
+1. F1MIS installation
+2. F1MIS synchronization
+
+
+====================================================
+
+2. MEMORY CHECK REQUIREMENT
+
+The application should check:
+
+1. Total Physical RAM
+2. Available RAM before synchronization
+3. Operating System
+4. .NET Framework
+
+
+====================================================
+
+3. RAM VALIDATION LOGIC
+
+Do not check only installed RAM.
+
+Example:
+
+Server RAM = 8 GB
+
+But usage:
+
+Windows Server        = 2 GB
+SQL Server            = 2 GB
+RDP Users             = 2 GB
+Other Applications    = 1 GB
+
+Available RAM may be only 1 GB.
+
+Therefore available RAM is the important factor.
+
+
+Recommended validation:
+
+Minimum Total RAM:
+8 GB
+
+Recommended RAM:
+16 GB
+
+
+Minimum Available RAM before Sync:
+1.5 GB
+
+
+Logic:
+
+IF Total RAM < 8 GB
+    Show Warning
+
+IF Available RAM < 1.5 GB
+    Show Warning
+
+
+Do not force close application.
+Allow user to continue if required.
+
+
+====================================================
+
+4. INSTALLATION TIME MEMORY CHECK
+
+Installation Flow:
+
+
+User starts F1MISSetup.msi
+
+        |
+
+        ↓
+
+System Requirement Check
+
+        |
+
+        ↓
+
+Check RAM
+
+        |
+
+        ↓
+
+RAM Available?
+
+        |
+
+YES
+Continue Installation
+
+
+NO
+
+Show Warning
+
+
+====================================================
+
+INSTALLATION WARNING MESSAGE
+
+
+F1MIS System Requirement Warning
+
+Low memory detected on this computer.
+
+System Information:
+
+Total RAM:
+XX GB
+
+Recommended Requirement:
+
+Minimum RAM:
+8 GB
+
+Recommended RAM:
+16 GB
+
+
+For better performance with Tally synchronization:
+
+- Close unused applications
+- Logout unused Remote Desktop users
+- Increase server memory
+
+
+Do you want to continue installation?
+
+
+[YES]       [NO]
+
+
+====================================================
+
+5. SYNCHRONIZATION TIME MEMORY CHECK
+
+
+Before starting:
+
+F1MIS → Sync Transaction
+
+
+Run memory validation.
+
+
+Flow:
+
+
+Click Sync
+
+    |
+
+    ↓
+
+Check Available RAM
+
+    |
+
+    ↓
+
+Memory OK?
+
+
+YES
+Start Synchronization
+
+
+NO
+
+Show Warning
+
+
+====================================================
+
+SYNC WARNING MESSAGE
+
+
+F1MIS Memory Warning
+
+
+Available system memory is low.
+
+
+System Information:
+
+
+Total RAM:
+XX GB
+
+
+Available RAM:
+XX GB
+
+
+Active Users:
+XX
+
+
+Recommended Action:
+
+- Close unused applications
+- Logout unused RDP sessions
+- Increase RAM
+
+
+Do you want to continue synchronization?
+
+
+[CONTINUE]       [CANCEL]
+
+
+====================================================
+
+6. VB.NET MEMORY CHECK CODE
+
+
+Imports Microsoft.VisualBasic.Devices
+
+
+Public Class SystemMemoryCheck
+
+
+Public Shared Function CheckMemory() As Boolean
+
+
+Dim info As New ComputerInfo()
+
+
+Dim totalRAM As Double =
+
+info.TotalPhysicalMemory / (1024 ^ 3)
+
+
+
+Dim availableRAM As Double =
+
+info.AvailablePhysicalMemory / (1024 ^ 3)
+
+
+
+If availableRAM < 1.5 Then
+
+
+Dim result = MessageBox.Show(
+
+
+"Low available memory detected." &
+vbCrLf &
+"Total RAM : " &
+Math.Round(totalRAM,2) &
+" GB" &
+vbCrLf &
+"Available RAM : " &
+Math.Round(availableRAM,2) &
+" GB" &
+vbCrLf &
+vbCrLf &
+"Please close unused applications before synchronization.",
+
+
+"F1MIS Memory Warning",
+
+
+MessageBoxButtons.YesNo,
+
+
+MessageBoxIcon.Warning)
+
+
+
+If result = DialogResult.No Then
+
+Return False
+
+End If
+
+
+End If
+
+
+Return True
+
+
+End Function
+
+
+End Class
+
+
+
+====================================================
+
+7. INTEGRATION POINT
+
+
+Before existing sync process:
+
+
+Current:
+
+StartSync()
+
+
+
+Change to:
+
+
+If SystemMemoryCheck.CheckMemory() Then
+
+    StartSync()
+
+Else
+
+    Exit Sub
+
+End If
+
+
+
+====================================================
+
+8. SYSTEM HEALTH CHECK SCREEN (RECOMMENDED)
+
+
+Add new menu:
+
+
+F1MIS
+
+  |
+
+  System Health Check
+
+
+
+Display:
+
+
+F1MIS SYSTEM HEALTH REPORT
+
+
+Operating System:
+Windows Server        ✓
+
+
+.NET Framework:
+4.8                    ✓
+
+
+Application:
+64 Bit                 ✓
+
+
+Total RAM:
+8 GB                   ✓
+
+
+Available RAM:
+2 GB                   ✓
+
+
+SQL Connection:
+Connected              ✓
+
+
+Tally Connection:
+Connected              ✓
+
+
+
+Status:
+
+READY FOR SYNCHRONIZATION
+
+
+
+====================================================
+
+9. ADDITIONAL CHECKS
+
+
+Check SQL Server:
+
+- SQL Service Running
+- Database Connection Available
+- Free Disk Space Available
+
+
+Check Tally:
+
+- Tally Running
+- Tally Port Available
+- XML Response Available
+
+
+====================================================
+
+10. IMPORTANT DEVELOPMENT NOTE
+
+
+Do not implement only:
+
+
+IF RAM < 8 GB
+BLOCK APPLICATION
+
+
+
+Because:
+
+
+A server can have 8 GB RAM but still fail due to:
+
+
+- SQL Server memory usage
+- Multiple RDP users
+- Tally memory usage
+- Background services
+
+
+
+Correct approach:
+
+
+Check:
+
+1. Total RAM
+
+AND
+
+2. Available RAM before synchronization
+
+
+
+====================================================
+
+11. RECOMMENDED SERVER REQUIREMENT
+
+
+Minimum:
+
+RAM:
+8 GB
+
+CPU:
+4 Core
+
+Storage:
+SSD
+
+Users:
+1-2 RDP Users
+
+
+Recommended:
+
+RAM:
+16 GB+
+
+CPU:
+4-8 Core
+
+Storage:
+SSD
+
+Users:
+3+ RDP Users
+
+
+====================================================
+
+12. DEVELOPER TASK LIST
+
+
+[ ] Add RAM checking module
+
+[ ] Add available memory validation
+
+[ ] Add installation warning
+
+[ ] Add sync warning
+
+[ ] Add system health check screen
+
+[ ] Test with 8 GB RDP server
+
+[ ] Test with multiple users
+
+[ ] Test Tally transaction synchronization
+
+
+END OF REQUIREMENT DOCUMENT
